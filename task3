@@ -1,0 +1,277 @@
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.table.*;
+
+public class InventoryManagementSystem {
+
+    // Product class
+    private static class Product {
+        private String name;
+        private int quantity;
+        private double price;
+
+        public Product(String name, int quantity, double price) {
+            this.name = name;
+            this.quantity = quantity;
+            this.price = price;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public int getQuantity() {
+            return quantity;
+        }
+
+        public double getPrice() {
+            return price;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    // User class
+    private static class User {
+        private String username;
+        private String password;
+
+        public User(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+    }
+
+    // Main GUI class
+    private static class InventoryFrame extends JFrame {
+        private JTable productTable;
+        private DefaultTableModel tableModel;
+        private JTextField nameField, quantityField, priceField;
+        private JButton addButton, editButton, deleteButton, logoutButton;
+        private JLabel lowStockLabel;
+        private ArrayList<Product> products;
+        private User currentUser;
+
+        public InventoryFrame(User user) {
+            this.currentUser = user;
+            setTitle("Inventory Management System");
+            setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            setSize(800, 600);
+            setLayout(new BorderLayout());
+
+            // Create table
+            String[] columnNames = {"Name", "Quantity", "Price"};
+            tableModel = new DefaultTableModel(columnNames, 0);
+            productTable = new JTable(tableModel);
+            JScrollPane scrollPane = new JScrollPane(productTable);
+            add(scrollPane, BorderLayout.CENTER);
+
+            // Create input fields
+            JPanel inputPanel = new JPanel();
+            inputPanel.setLayout(new GridLayout(3, 2));
+            inputPanel.add(new JLabel("Name:"));
+            nameField = new JTextField();
+            inputPanel.add(nameField);
+            inputPanel.add(new JLabel("Quantity:"));
+            quantityField = new JTextField();
+            inputPanel.add(quantityField);
+            inputPanel.add(new JLabel("Price:"));
+            priceField = new JTextField();
+            inputPanel.add(priceField);
+            add(inputPanel, BorderLayout.NORTH);
+
+            // Create buttons
+            JPanel buttonPanel = new JPanel();
+            addButton = new JButton("Add");
+            addButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    addProduct();
+                }
+            });
+            buttonPanel.add(addButton);
+            editButton = new JButton("Edit");
+            editButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    editProduct();
+                }
+            });
+            buttonPanel.add(editButton);
+            deleteButton = new JButton("Delete");
+            deleteButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    deleteProduct();
+                }
+            });
+            buttonPanel.add(deleteButton);
+            logoutButton = new JButton("Logout");
+            logoutButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    logout();
+                }
+            });
+            buttonPanel.add(logoutButton);
+            add(buttonPanel, BorderLayout.SOUTH);
+
+            // Create low stock label
+            lowStockLabel = new JLabel();
+            add(lowStockLabel, BorderLayout.EAST);
+
+            // Load products from file
+            loadProducts();
+
+            // Check for low stock
+            checkLowStock();
+
+            setVisible(true);
+        }
+
+        private void addProduct() {
+            String name = nameField.getText();
+            int quantity;
+            try {
+                quantity = Integer.parseInt(quantityField.getText());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Invalid quantity.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            double price;
+            try {
+                price = Double.parseDouble(priceField.getText());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Invalid price.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter product name.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Product product = new Product(name, quantity, price);
+            products.add(product);
+            tableModel.addRow(new Object[]{name, quantity, price});
+            saveProducts();
+            checkLowStock();
+        }
+
+        private void editProduct() {
+            int selectedRow = productTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Please select a product to edit.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String name = nameField.getText();
+            int quantity;
+            try {
+                quantity = Integer.parseInt(quantityField.getText());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Invalid quantity.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            double price;
+            try {
+                price = Double.parseDouble(priceField.getText());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Invalid price.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter product name.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            products.get(selectedRow).setName(name);
+            products.get(selectedRow).setQuantity(quantity);
+            products.get(selectedRow).setPrice(price);
+            tableModel.setValueAt(name, selectedRow, 0);
+            tableModel.setValueAt(quantity, selectedRow, 1);
+            tableModel.setValueAt(price, selectedRow, 2);
+            saveProducts();
+            checkLowStock();
+        }
+
+        private void deleteProduct() {
+            int selectedRow = productTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Please select a product to delete.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this product?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                products.remove(selectedRow);
+                tableModel.removeRow(selectedRow);
+                saveProducts();
+                checkLowStock();
+            }
+        }
+
+        private void logout() {
+            dispose();
+            LoginFrame loginFrame = new LoginFrame();
+            loginFrame.setVisible(true);
+        }
+
+        private void loadProducts() {
+            products = new ArrayList<>();
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("products.dat"))) {
+                products = (ArrayList<Product>) ois.readObject();
+            } catch (IOException | ClassNotFoundException ex) {
+                // File not found or empty
+            }
+
+            // Populate table
+            for (Product product : products) {
+                tableModel.addRow(new Object[]{product.getName(), product.getQuantity(), product.getPrice()});
+            }
+        }
+
+        private void saveProducts() {
+            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("products.dat"))) {
+                oos.writeObject(products);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Error saving products.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+
+        private void checkLowStock() {
+            String lowStockMessage = "Low stock alert: ";
+            boolean hasLowStock = false;
+            for (Product product : products) {
+                if (product.getQuantity() < 10) {
+                    lowStockMessage += product.getName() + " ";
+                    hasLowStock = true;
+                }
+            }
+            lowStockLabel.setText(hasLowStock ? lowStockMessage : "");
+        }
+    }
+
+    // Login GUI class
+    private static class LoginFrame extends JFrame {
+        private JTextField usernameField;
+        private JPasswordField passwordField;
+        private JButton loginButton;
+        private ArrayList<User> users;
+
+        public LoginFrame() {
+            setTitle("Login");
